@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "]"
+name = "letterboxd-recommendations"
 version = "0.1.0"
 description = ""
 authors = ["harrisonpim <hello@harrisonpim.com>"]
@@ -10,6 +10,8 @@ python = ">=3.9,<3.13"
 Scrapy = "^2.11.0"
 pandas = "^2.1.2"
 torch = "^2.1.0"
+rich = "^13.6.0"
+humanize = "^4.8.0"
 
 
 [build-system]
