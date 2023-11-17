@@ -16,3 +16,6 @@ process:
 
 train:
 	poetry run python scripts/train.py
+
+test:
+	poetry run pre-commit run -a

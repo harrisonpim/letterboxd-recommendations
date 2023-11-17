@@ -24,9 +24,6 @@ for file in sorted((data_dir / "raw").glob("*.json")):
     n_rows_after = len(df)
     console.print(f"  Dropped {intcomma(n_rows_before - n_rows_after)} rows")
 
-    # save the processed data as regular jsonl
-    df.to_json(processed_data_path, lines=True, orient="records")
-
     console.print(
         f"  Processed data has {intcomma(len(df))} rows, covering "
         f"{intcomma(len(df['username'].unique()))} users and "
@@ -37,4 +34,46 @@ for file in sorted((data_dir / "raw").glob("*.json")):
         f"{df['rating'].std():.2f}"
     )
 
-    console.print(f"  Saved processed data to [bold]{processed_data_path}", "\n")
+    # implement a train / test split
+    # for each user, take 20% of their ratings and put them in the test set
+    test_indexes = (
+        df.groupby("username")
+        .apply(lambda x: x.sample(frac=0.2, random_state=42).index)
+        .reset_index(drop=True)
+        .explode()
+        .to_list()
+    )
+
+    df_train = df.drop(test_indexes)
+    df_test = df.loc[test_indexes]
+
+    console.print(
+        f"  Training data has {intcomma(len(df_train))} rows, covering "
+        f"{intcomma(len(df_train['username'].unique()))} users and "
+        f"{intcomma(len(df_train['film-slug'].unique()))} films"
+    )
+
+    console.print(
+        f"  Test data has {intcomma(len(df_test))} rows, covering "
+        f"{intcomma(len(df_test['username'].unique()))} users and "
+        f"{intcomma(len(df_test['film-slug'].unique()))} films"
+    )
+
+    # save the processed data
+    (data_dir / "processed" / file.stem).mkdir(exist_ok=True)
+    df.to_json(
+        data_dir / "processed" / file.stem / "all.json", lines=True, orient="records"
+    )
+    df_train.to_json(
+        data_dir / "processed" / file.stem / "train.json", lines=True, orient="records"
+    )
+    df_test.to_json(
+        data_dir / "processed" / file.stem / "test.json", lines=True, orient="records"
+    )
+
+    df["film-slug"].sort_values().drop_duplicates().to_csv(
+        data_dir / "processed" / file.stem / "films.csv", index=False, header=False
+    )
+    df["username"].sort_values().drop_duplicates().to_csv(
+        data_dir / "processed" / file.stem / "users.csv", index=False, header=False
+    )
