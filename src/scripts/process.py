@@ -15,8 +15,8 @@ for file in sorted((data_dir / "raw").glob("*.json")):
     n_rows_before = len(df)
     console.print(f"  Raw data has {intcomma(n_rows_before)} rows")
 
-    # drop any film which hasn't been rated by more than 3 users
-    df = df.groupby("film-slug").filter(lambda x: len(x) > 3)
+    # drop any film which hasn't been rated by more than 20 users
+    df = df.groupby("film-slug").filter(lambda x: len(x) > 20)
 
     # drop any user who hasn't rated more than 3 films
     df = df.groupby("username").filter(lambda x: len(x) > 3)
@@ -46,6 +46,13 @@ for file in sorted((data_dir / "raw").glob("*.json")):
 
     df_train = df.drop(test_indexes)
     df_test = df.loc[test_indexes]
+
+    # make sure that the test dataset only contains users and films that are in the
+    # training dataset
+    df_test = df_test[
+        df_test["username"].isin(df_train["username"])
+        & df_test["film-slug"].isin(df_train["film-slug"])
+    ]
 
     console.print(
         f"  Training data has {intcomma(len(df_train))} rows, covering "

@@ -15,6 +15,7 @@ torch = "^2.1.0"
 rich = "^13.6.0"
 humanize = "^4.8.0"
 tqdm = "^4.66.1"
+typer = "^0.9.0"
 
 [build-system]
 requires = ["poetry-core"]

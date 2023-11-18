@@ -1,13 +1,13 @@
-from torch.nn import Module, Embedding, Sequential, Linear, ReLU, Sigmoid, Dropout
+import pandas as pd
+from torch.nn import Module, Embedding, Sequential, Linear, ReLU, Dropout, Sigmoid
 import torch
+from typing import Optional
 from src.dataset import LetterboxdDataset
 
 
 class Recommender(Module):
     def __init__(
-        self,
-        dataset: LetterboxdDataset,
-        embedding_size=50,
+        self, dataset: LetterboxdDataset = LetterboxdDataset.empty(), embedding_size=50
     ):
         """
         Recommender system for films based on letterboxd user ratings.
@@ -38,23 +38,41 @@ class Recommender(Module):
         """
         Get the embedding for a user.
 
+        :param int user_index: The letterboxd user's index in the dataset
+        :return torch.Tensor: The user embedding.
+        """
+        user_index = int(user_index)
+        user_ratings = self.dataset.get_user_ratings(user_index)
+        ratings = torch.tensor(user_ratings["rating"].values).unsqueeze(1)
+        film_indices = torch.tensor(user_ratings["film_index"].values)
+        user_embedding = self.get_user_embedding_from_ratings(film_indices, ratings)
+        return user_embedding
+
+    def get_user_embedding_from_ratings(
+        self, film_indices: torch.Tensor, ratings: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Generate an embedding for a user based on the films that they have rated
+
         User embeddings are the concatenated min, max, mean, and median of the
         embeddings of the films that the user has rated. Building user embeddings from
         the film embeddings is a way to get a reasonable embedding for users who are
         not in the training set, ie overcoming the cold start problem.
 
         To account for users' preferences within the set of films they have rated,
-        the constituent film embeddings are weighted by their rating.
+        the constituent film embeddings are weighted by their rating. Weighting the
+        embeddings by the rating is equivalent to weighting the embeddings by the
+        difference between the rating and the mean rating for that user. Some of the
+        ratings are negative, so the ratings are shifted so that films which are given
+        the mean rating for that user have a weight of 0.1
 
-        :param int user_index: The letterboxd user's index in the dataset
-        :return torch.Tensor: The user embedding.
+        :param torch.Tensor film_indices: The indices of the films the user has rated
+        :param torch.Tensor ratings: The corresponding ratings for each film
+        :return torch.Tensor: The user embedding
         """
-        user_index = int(user_index)
-        user_ratings = self.dataset.get_user_ratings(user_index)
-        scores = torch.tensor(user_ratings["rating"].values).unsqueeze(1)
-        film_indices = torch.tensor(user_ratings["film_index"].values)
+        weights = (ratings - ratings.mean()) + 0.1
         user_film_embeddings = self.film_embeddings(film_indices)
-        weighted_embeddings = user_film_embeddings * scores
+        weighted_embeddings = user_film_embeddings * weights
         user_embedding = torch.cat(
             [
                 weighted_embeddings.min(dim=0)[0],
@@ -91,13 +109,51 @@ class Recommender(Module):
         input_embeddings = torch.cat([user_embeddings, film_embeddings], dim=1)
         return self.feed_forward_layers(input_embeddings).squeeze()
 
-    def predict(self, user_indices: list[str], film_indices: list[str]) -> torch.Tensor:
+    def predict(
+        self, user_embedding: torch.Tensor, film_indices: Optional[torch.Tensor] = None
+    ) -> pd.DataFrame:
         """
-        Predict ratings for a batch of user_indices and film_indices.
+        Predict the rating that a user will give to a film.
 
-        :param list[str] user_indices: A batch of user indexes
-        :param list[str] film_indices: A batch of film indexes
-        :return torch.Tensor: Predicted ratings
+        :param torch.Tensor user_embedding: The user embedding.
+        :param torch.Tensor film_embeddings: The film embeddings. If None, the model
+        will predict the rating for all films in the dataset.
+        :return pd.DataFrame: A dataframe containing the predicted ratings for each
+        film.
         """
-        with torch.no_grad():
-            return self.forward(user_indices, film_indices)
+        if film_indices is None:
+            film_indices = torch.arange(len(self.dataset.films))
+
+        film_embeddings = self.film_embeddings(film_indices).to(torch.float32)
+
+        input_embeddings = torch.cat(
+            [user_embedding.repeat(len(film_indices), 1), film_embeddings], dim=1
+        )
+        predicted_scores = (
+            self.feed_forward_layers(input_embeddings).squeeze().detach().numpy()
+        )
+        film_slugs = self.dataset.index_to_film.values()
+        return pd.DataFrame(
+            {"film-slug": film_slugs, "predicted-rating": predicted_scores}
+        )
+
+    def save(self, path: str):
+        """
+        Save the model to a file.
+
+        :param str path: The path to save the model to.
+        """
+        torch.save(self, path)
+
+    @classmethod
+    def load(cls, path: str):
+        """
+        Load the model from a file.
+
+        :param str path: The path to load the model from.
+        :return Recommender: The loaded model.
+        """
+        model = torch.load(path)
+        assert isinstance(model, cls)
+        model.eval()
+        return model

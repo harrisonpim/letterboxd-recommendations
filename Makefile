@@ -5,6 +5,9 @@ install:
 	poetry run pre-commit install
 	poetry run ipython kernel install --user
 
+test:
+	poetry run pre-commit run -a
+
 scrape:
 	$(eval date := $(shell date -u +"%Y-%m-%d"))
 	$(eval file_name := data/raw/$(date).json)
@@ -17,5 +20,5 @@ process:
 train:
 	poetry run python src/scripts/train.py
 
-test:
-	poetry run pre-commit run -a
+recommend:
+	poetry run python src/scripts/recommend.py
