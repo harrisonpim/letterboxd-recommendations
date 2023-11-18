@@ -4,6 +4,8 @@ version = "0.1.0"
 description = ""
 authors = ["harrisonpim <hello@harrisonpim.com>"]
 readme = "README.md"
+license = "MIT"
+packages = [{ include = "src" }]
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.13"
@@ -12,7 +14,7 @@ pandas = "^2.1.2"
 torch = "^2.1.0"
 rich = "^13.6.0"
 humanize = "^4.8.0"
-
+tqdm = "^4.66.1"
 
 [build-system]
 requires = ["poetry-core"]
