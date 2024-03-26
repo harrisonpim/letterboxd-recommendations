@@ -12,13 +12,13 @@ scrape:
 	$(eval date := $(shell date -u +"%Y-%m-%d"))
 	$(eval file_name := data/raw/$(date).json)
 	rm -f $(file_name)
-	poetry run scrapy runspider src/scripts/scrape.py -o $(file_name) --loglevel=INFO
+	poetry run scrapy runspider scripts/scrape.py -o $(file_name) --loglevel=INFO
 
 process:
-	poetry run python src/scripts/process.py
+	poetry run python scripts/process.py
 
 train:
-	poetry run python src/scripts/train.py
+	poetry run python scripts/train.py
 
 recommend:
-	poetry run python src/scripts/recommend.py
+	poetry run python scripts/recommend.py

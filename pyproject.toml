@@ -5,7 +5,7 @@ description = ""
 authors = ["harrisonpim <hello@harrisonpim.com>"]
 readme = "README.md"
 license = "MIT"
-packages = [{ include = "src" }]
+packages = [{ include = "src" }, { include = "scripts" }]
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.13"
@@ -16,6 +16,11 @@ rich = "^13.6.0"
 humanize = "^4.8.0"
 tqdm = "^4.66.1"
 typer = "^0.9.0"
+httpx = "^0.26.0"
+
+[tool.poetry.group.dev.dependencies]
+pre-commit = "^3.5.0"
+ruff = "^0.1.6"
 
 [build-system]
 requires = ["poetry-core"]

@@ -1,8 +1,9 @@
-import torch
-from typing import Union, Optional
 from pathlib import Path
+from typing import Optional, Union
+
 import pandas as pd
-from torch.utils.data import Dataset, DataLoader
+import torch
+from torch.utils.data import DataLoader, Dataset
 
 
 class LetterboxdDataset(Dataset):
@@ -21,6 +22,7 @@ class LetterboxdDataset(Dataset):
             self.ratings = self.ratings.sample(n=n)
         self.users = self.ratings["username"].unique()
         self.films = self.ratings["film-slug"].unique()
+        self.mean_rating = self.ratings["rating"].mean()
 
         if use_indices_from is not None:
             self.user_to_index = use_indices_from.user_to_index
@@ -86,7 +88,7 @@ class LetterboxdDataset(Dataset):
         :param int user_index: The index of the user in the dataset.
         :return pd.DataFrame: The user's ratings.
         """
-        return self.ratings[self.ratings["user_index"] == user_index]
+        return self.ratings[self.ratings["user_index"] == int(user_index)]
 
     def get_film_ratings(self, film_index: int) -> pd.DataFrame:
         """

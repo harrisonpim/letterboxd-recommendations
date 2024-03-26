@@ -1,7 +1,8 @@
-from rich.console import Console
-import pandas as pd
 from pathlib import Path
+
+import pandas as pd
 from humanize import intcomma
+from rich.console import Console
 
 console = Console(highlight=False)
 
@@ -14,6 +15,9 @@ for file in sorted((data_dir / "raw").glob("*.json")):
     df = pd.read_json(raw_data_path)
     n_rows_before = len(df)
     console.print(f"  Raw data has {intcomma(n_rows_before)} rows")
+
+    # drop any duplicate rows
+    df = df.drop_duplicates()
 
     # drop any film which hasn't been rated by more than 20 users
     df = df.groupby("film-slug").filter(lambda x: len(x) > 20)

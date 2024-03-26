@@ -1,5 +1,6 @@
+from typing import Any, Generator, Union
+
 import scrapy
-from typing import Generator, Any, Union
 
 
 class LetterboxdSpider(scrapy.Spider):
