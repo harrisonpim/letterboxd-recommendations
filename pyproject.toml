@@ -17,6 +17,8 @@ humanize = "^4.8.0"
 tqdm = "^4.66.1"
 typer = "^0.9.0"
 httpx = "^0.26.0"
+fastapi = "^0.110.0"
+uvicorn = {extras = ["standard"], version = "^0.29.0"}
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.5.0"

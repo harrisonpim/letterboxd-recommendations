@@ -22,3 +22,6 @@ train:
 
 recommend:
 	poetry run python scripts/recommend.py
+
+fastapi:
+	poetry run uvicorn api.main:app --reload
