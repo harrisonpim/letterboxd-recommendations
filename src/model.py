@@ -132,18 +132,32 @@ class Recommender(Module):
         """
         if film_indices is None:
             film_indices = torch.arange(len(self.dataset.films))
+        elif isinstance(film_indices, int):
+            film_indices = torch.tensor([film_indices])
+        elif isinstance(film_indices, list):
+            film_indices = torch.tensor(film_indices)
 
-        film_slugs = [self.dataset.index_to_film[i] for i in film_indices.numpy()]
+        if isinstance(user_indices, int):
+            user_indices = torch.tensor([user_indices])
+        elif isinstance(user_indices, list):
+            user_indices = torch.tensor(user_indices)
 
-        full_predicted_scores = (
-            self.forward(user_indices, film_indices).detach().numpy()
-        )
+        full_predicted_scores = self.forward(user_indices, film_indices)
 
         # just take the diagonal values of the matrix. These are the interactions between
         # user i and film i, ie the pairings that we have ratings for
-        predictions = torch.diag(full_predicted_scores)
+        predictions = torch.diag(full_predicted_scores).detach().numpy().tolist()
 
-        return pd.DataFrame({"film-slug": film_slugs, "predicted-rating": predictions})
+        film_urls = [
+            f"https://letterboxd.com/film/{self.dataset.index_to_film[i]}"
+            for i in film_indices.detach().numpy().tolist()
+        ]
+
+        return (
+            pd.DataFrame({"film-url": film_urls, "predicted-rating": predictions})
+            .sort_values("predicted-rating", ascending=False)
+            .to_dict(orient="records")
+        )
 
     def save(self, path: str):
         """

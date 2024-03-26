@@ -10,9 +10,10 @@ class LetterboxdSpider(scrapy.Spider):
     n_pages = 10
     target_user = None
 
-    def __init__(self, target_user=None, *args, **kwargs):
+    def __init__(self, target_user: str, n_pages: int = 10, *args, **kwargs):
         super(LetterboxdSpider, self).__init__(*args, **kwargs)
         self.target_user = target_user
+        self.n_pages = n_pages
 
     def parse(self, response) -> Generator[Any, Any, None]:
         if self.target_user:
@@ -45,7 +46,7 @@ class LetterboxdSpider(scrapy.Spider):
             yield {
                 "username": username,
                 "film-slug": rating.css("div.poster::attr(data-film-slug)").get(),
-                "rating": self._stars_to_rating(rating_string),
+                "rating": stars_to_rating(rating_string),
             }
 
         # Extract the link to the next page
@@ -53,13 +54,14 @@ class LetterboxdSpider(scrapy.Spider):
         if next_page is not None:
             yield response.follow(next_page, callback=self.parse_user)
 
-    def _stars_to_rating(self, stars: str) -> float:
-        """
-        Takes a string of stars and returns the number of stars as a float between 0 and 5.
 
-        :param str stars: The raw star rating from letterboxd, eg "★★★½"
-        :return float: The parsed star rating, eg 3.5
-        """
-        if (len(stars) > 5) or (stars.count("½") > 1):
-            raise ValueError(f"Invalid star rating: {stars}")
-        return stars.count("★") + 0.5 * stars.count("½")
+def stars_to_rating(stars: str) -> float:
+    """
+    Takes a string of stars and returns the number of stars as a float between 0 and 5.
+
+    :param str stars: The raw star rating from letterboxd, eg "★★★½"
+    :return float: The parsed star rating, eg 3.5
+    """
+    if (len(stars) > 5) or (stars.count("½") > 1):
+        raise ValueError(f"Invalid star rating: {stars}")
+    return stars.count("★") + 0.5 * stars.count("½")
