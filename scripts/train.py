@@ -52,13 +52,15 @@ for epoch in range(n_epochs):
     model.train()
     train_progress_bar = tqdm(train_dataloader)
     for i, batch in enumerate(train_progress_bar):
-        user_indices, film_indices, true_ratings = batch
         optimizer.zero_grad()
-        full_predicted_scores = model.forward(user_indices, film_indices)
+        user_indices, film_indices, true_ratings = batch
+        user_embeddings = model.get_user_embeddings(user_indices)
+        film_embeddings = model.film_embeddings(film_indices)
+        full_predicted_scores = model(user_embeddings, film_embeddings).squeeze()
         # just take the diagonal values of the matrix. These are the interactions between
         # user i and film i, ie the pairings we have ratings for
         predictions = torch.diag(full_predicted_scores)
-        loss = loss_function(predictions.squeeze(), true_ratings.float())
+        loss = loss_function(predictions, true_ratings.float())
         loss.backward()
         optimizer.step()
         train_losses.append(loss.item())
@@ -74,11 +76,13 @@ for epoch in range(n_epochs):
     test_progress_bar = tqdm(test_dataloader)
     for batch in test_progress_bar:
         user_indices, film_indices, true_ratings = batch
-        full_predicted_scores = model.forward(user_indices, film_indices)
+        user_embeddings = model.get_user_embeddings(user_indices)
+        film_embeddings = model.film_embeddings(film_indices)
+        full_predicted_scores = model(user_embeddings, film_embeddings).squeeze()
         # just take the diagonal values of the matrix. These are the interactions between
         # user i and film i, ie the pairings we have ratings for
         predictions = torch.diag(full_predicted_scores)
-        loss = loss_function(predictions.squeeze(), true_ratings.float())
+        loss = loss_function(predictions, true_ratings.float())
         test_losses.append(loss)
         rolling_loss = sum(test_losses[-20:]) / len(test_losses[-20:])
         test_progress_bar.set_description(

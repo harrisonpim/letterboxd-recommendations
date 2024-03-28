@@ -1,6 +1,3 @@
-from typing import Optional
-
-import pandas as pd
 import torch
 from torch.nn import Dropout, Embedding, Linear, Module, ReLU, Sequential
 
@@ -15,8 +12,7 @@ class Recommender(Module):
         Recommender system for films based on letterboxd user ratings.
 
         :param LetterboxdDataset dataset: Dataset containing user ratings.
-        :param int embedding_size: Size of the film embeddings. User embeddings are 4
-        times this size.
+        :param int embedding_size: Dimensionality of the film embeddings
         """
         super().__init__()
         self.dataset = dataset
@@ -56,13 +52,13 @@ class Recommender(Module):
         """
         Generate an embedding for a user based on the films that they have rated
 
-        User embeddings are the concatenated min, max, mean, and median of the
-        embeddings of the films that the user has rated. Building user embeddings from
-        the film embeddings is a way to get a reasonable embedding for users who are
-        not in the training set, ie overcoming the cold start problem.
-
-        Concatenated embeddings are then passed through a feed forward network to get
-        the user embedding to match the size of the film embeddings.
+        User embeddings are formed by concatenating the min, max, mean, and median of
+        the embeddings of the films that the user has rated. Building user embeddings
+        from the film embeddings is a way to get a reasonable embedding for users who
+        are not in the training set, ie overcoming the cold start problem.
+        Concatenated embeddings are then passed through a small feed forward network to
+        get the user embedding to match the size of the film embeddings, which are used
+        to make predictions.
 
         To account for users' preferences within the set of films they have rated,
         the constituent film embeddings are weighted by their rating. Weighting the
@@ -104,8 +100,8 @@ class Recommender(Module):
 
     def forward(
         self,
-        user_indices: torch.Tensor,  # size: (batch_size, 1)
-        film_indices: torch.Tensor,  # size: (batch_size, 1)
+        user_embeddings: torch.Tensor,  # size: (batch_size, embedding_size)
+        film_embeddings: torch.Tensor,  # size: (batch_size, embedding_size)
     ) -> torch.Tensor:  # size: (batch_size, batch_size)
         """
         Forward pass of the model.
@@ -114,50 +110,7 @@ class Recommender(Module):
         :param torch.Tensor film_indices: A batch of film indexes
         :return torch.Tensor: Predicted ratings
         """
-        user_embeddings = self.get_user_embeddings(user_indices)
-        film_embeddings = self.film_embeddings(film_indices.int())
         return torch.matmul(user_embeddings, film_embeddings.T)
-
-    def predict(
-        self, user_indices: torch.Tensor, film_indices: Optional[torch.Tensor] = None
-    ) -> pd.DataFrame:
-        """
-        Predict the rating that a user will give to a film.
-
-        :param torch.Tensor user_indices: The user indices.
-        :param torch.Tensor film_indices: The film indices. If None, the model
-        will predict the rating for all films in the dataset.
-        :return pd.DataFrame: A dataframe containing the predicted ratings for each
-        film.
-        """
-        if film_indices is None:
-            film_indices = torch.arange(len(self.dataset.films))
-        elif isinstance(film_indices, int):
-            film_indices = torch.tensor([film_indices])
-        elif isinstance(film_indices, list):
-            film_indices = torch.tensor(film_indices)
-
-        if isinstance(user_indices, int):
-            user_indices = torch.tensor([user_indices])
-        elif isinstance(user_indices, list):
-            user_indices = torch.tensor(user_indices)
-
-        full_predicted_scores = self.forward(user_indices, film_indices)
-
-        # just take the diagonal values of the matrix. These are the interactions between
-        # user i and film i, ie the pairings that we have ratings for
-        predictions = torch.diag(full_predicted_scores).detach().numpy().tolist()
-
-        film_urls = [
-            f"https://letterboxd.com/film/{self.dataset.index_to_film[i]}"
-            for i in film_indices.detach().numpy().tolist()
-        ]
-
-        return (
-            pd.DataFrame({"film-url": film_urls, "predicted-rating": predictions})
-            .sort_values("predicted-rating", ascending=False)
-            .to_dict(orient="records")
-        )
 
     def save(self, path: str):
         """

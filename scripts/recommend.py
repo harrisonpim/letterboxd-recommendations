@@ -81,11 +81,16 @@ def main(
     film_indices_to_predict_against = torch.Tensor(
         [model.dataset.film_to_index[slug] for slug in film_slugs_to_predict_against]
     ).int()
+    film_embeddings = model.film_embeddings(film_indices_to_predict_against)
+    user_embeddings = user_embedding.unsqueeze(0)
+    predictions = model(user_embeddings, film_embeddings).squeeze(0).detach().numpy()
 
-    ratings = model.predict(
-        user_embedding=user_embedding, film_indices=film_indices_to_predict_against
-    )
+    film_urls = [
+        f"https://letterboxd.com/film/{model.dataset.index_to_film[i]}"
+        for i in film_indices_to_predict_against.detach().numpy().tolist()
+    ]
 
+    ratings = pd.DataFrame({"film-url": film_urls, "predicted-rating": predictions})
     console.print(ratings.sort_values("predicted-rating", ascending=False).head(30))
 
 
