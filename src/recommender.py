@@ -2,6 +2,7 @@ import torch
 from torch.nn import Dropout, Embedding, Linear, Module, ReLU, Sequential
 
 from src.dataset import LetterboxdDataset
+from src.numpy_recommender import NumpyRecommender
 
 
 class Recommender(Module):
@@ -39,7 +40,6 @@ class Recommender(Module):
         :param int user_index: The letterboxd user's index in the dataset
         :return torch.Tensor: The user embedding.
         """
-
         user_ratings = self.dataset.get_user_ratings(user_index)
         ratings = torch.tensor(user_ratings["rating"].values).unsqueeze(1)
         film_indices = torch.tensor(user_ratings["film_index"].values)
@@ -132,3 +132,26 @@ class Recommender(Module):
         assert isinstance(model, cls)
         model.eval()
         return model
+
+    def to_numpy(self) -> "NumpyRecommender":
+        """
+        Convert the model to a NumpyRecommender.
+
+        :return NumpyRecommender: A NumpyRecommender version of the model.
+        """
+        film_embeddings = self.film_embeddings.weight.detach().numpy()
+        feed_forward_weights, feed_forward_biases = zip(
+            *[
+                (layer.weight.detach().numpy(), layer.bias.detach().numpy())
+                for layer in self.feed_forward_layers
+                if isinstance(layer, Linear)
+            ]
+        )
+        numpy_model = NumpyRecommender(
+            film_slugs=self.dataset.films,
+            film_embeddings=film_embeddings,
+            mean_rating=self.mean_rating,
+            feed_forward_weights=feed_forward_weights,
+            feed_forward_biases=feed_forward_biases,
+        )
+        return numpy_model

@@ -40,3 +40,15 @@ def scrape_watchlist(username: str, n_pages: Optional[int]) -> List[str]:
             i += 1
 
     return watchlist
+
+
+def stars_to_rating(stars: str) -> float:
+    """
+    Takes a string of stars and returns the number of stars as a float between 0 and 5.
+
+    :param str stars: The raw star rating from letterboxd, eg "★★★½"
+    :return float: The parsed star rating, eg 3.5
+    """
+    if (len(stars) > 5) or (stars.count("½") > 1):
+        raise ValueError(f"Invalid star rating: {stars}")
+    return stars.count("★") + 0.5 * stars.count("½")

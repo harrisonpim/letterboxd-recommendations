@@ -1,3 +1,4 @@
+import numpy as np
 from pathlib import Path
 from typing import Optional, Union
 
@@ -116,3 +117,21 @@ class LetterboxdDataset(Dataset):
         Create an empty dataset.
         """
         return cls(pd.DataFrame(columns=["username", "film-slug", "rating"]))
+
+    @classmethod
+    def dummy(cls, n: int) -> "LetterboxdDataset":
+        """
+        Create a dummy dataset with n ratings. The number of users should be roughly
+        sqrt(n). The films are named "film-{i}" where i is a random integer between 0
+        and sqrt(n). The ratings are random floats between 0 and 5 in increments of 0.5.
+        """
+        dummy_df = pd.DataFrame(
+            {
+                "username": [f"user-{int(i**0.5)}" for i in range(n)],
+                "film-slug": [
+                    f"film-{np.random.randint(0, int(n**0.5))}" for _ in range(n)
+                ],
+                "rating": np.random.randint(0, 10, n) / 2,
+            }
+        )
+        return cls(dummy_df)

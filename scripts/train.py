@@ -10,7 +10,7 @@ from tqdm import TqdmExperimentalWarning
 from tqdm.rich import tqdm
 
 from src.dataset import LetterboxdDataset
-from src.model import Recommender
+from src.recommender import Recommender
 
 warnings.filterwarnings("ignore", category=TqdmExperimentalWarning)
 console = Console(highlight=False)
@@ -39,6 +39,10 @@ console.print(
 embedding_size = 10
 model = Recommender(train_dataset, embedding_size=embedding_size)
 
+# send the model to the GPU if available
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model.to(device)
+
 batch_size = 512
 train_dataloader = train_dataset.get_dataloader(batch_size=batch_size)
 test_dataloader = test_dataset.get_dataloader(batch_size=batch_size)
@@ -53,7 +57,7 @@ for epoch in range(n_epochs):
     train_progress_bar = tqdm(train_dataloader)
     for i, batch in enumerate(train_progress_bar):
         optimizer.zero_grad()
-        user_indices, film_indices, true_ratings = batch
+        user_indices, film_indices, true_ratings = [x.to(device) for x in batch]
         user_embeddings = model.get_user_embeddings(user_indices)
         film_embeddings = model.film_embeddings(film_indices)
         full_predicted_scores = model(user_embeddings, film_embeddings).squeeze()
@@ -75,7 +79,7 @@ for epoch in range(n_epochs):
     model.eval()
     test_progress_bar = tqdm(test_dataloader)
     for batch in test_progress_bar:
-        user_indices, film_indices, true_ratings = batch
+        user_indices, film_indices, true_ratings = [x.to(device) for x in batch]
         user_embeddings = model.get_user_embeddings(user_indices)
         film_embeddings = model.film_embeddings(film_indices)
         full_predicted_scores = model(user_embeddings, film_embeddings).squeeze()
@@ -91,3 +95,7 @@ for epoch in range(n_epochs):
 
     model.save(model_path)
     console.print(f"Saved model to {model_path}")
+
+    if device.type == "cuda":
+        torch.cuda.empty_cache()
+        console.print("Emptied CUDA cache")

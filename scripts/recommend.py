@@ -9,7 +9,7 @@ from scrapy.crawler import CrawlerProcess
 
 from scripts.scrape import LetterboxdSpider
 from src.letterboxd import scrape_watchlist
-from src.model import Recommender
+from src.recommender import Recommender
 
 console = console.Console(highlight=False)
 app = typer.Typer()

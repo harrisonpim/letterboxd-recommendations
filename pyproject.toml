@@ -21,6 +21,7 @@ fastapi = "^0.110.0"
 uvicorn = {extras = ["standard"], version = "^0.29.0"}
 pulumi = "^3.112.0"
 pulumi-aws = "^6.28.1"
+pytest = "^8.1.1"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.5.0"

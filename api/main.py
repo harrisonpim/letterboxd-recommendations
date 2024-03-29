@@ -1,17 +1,16 @@
+import numpy as np
 from typing import List, Optional, Annotated
-import torch
 from pydantic import BaseModel
 from fastapi import FastAPI, Query
-from src.model import Recommender
-from scripts.scrape import stars_to_rating
+from src.numpy_recommender import NumpyRecommender, cosine_similarity
+from src.letterboxd import stars_to_rating
 import httpx
 from pathlib import Path
 import scrapy
 
-data_dir = Path("data/processed/2023-11-19")
-model_dir = Path("data/models")
+model_dir = Path("data/models/numpy/")
 model_path = sorted(model_dir.glob("*.pkl"))[-1]
-model = Recommender.load(model_path)
+model = NumpyRecommender.load(model_path)
 
 app = FastAPI()
 
@@ -53,33 +52,29 @@ def predict(username: str, n: Optional[int] = 10) -> List[FilmRecommendation]:
     film_indices = []
     ratings = []
     for rating in data:
-        if rating["film-slug"] in model.dataset.film_to_index:
-            film_indices.append(model.dataset.film_to_index[rating["film-slug"]])
+        if rating["film-slug"] in model.film_to_index:
+            film_indices.append(model.film_to_index[rating["film-slug"]])
             ratings.append(rating["rating"])
 
     user_embedding = model.get_user_embedding_from_ratings(
-        film_indices=torch.tensor(film_indices),
-        ratings=torch.tensor(ratings).unsqueeze(1),
+        film_indices=np.array(film_indices), ratings=np.array(ratings)
     )
     user_embeddings = user_embedding.unsqueeze(0)
-    film_embeddings = model.film_embeddings.weight
+    film_embeddings = model.film_embeddings
 
     # get the recommendations
     predictions = model(user_embeddings, film_embeddings).squeeze(0)
-    top = torch.topk(predictions, n)
+    top_indices = np.argsort(predictions)[::-1][:n]
     recommendations = [
         FilmRecommendation(
-            slug=model.dataset.index_to_film[index],
-            url=f"https://letterboxd.com/film/{model.dataset.index_to_film[index]}",
-            score=score,
+            slug=model.index_to_film[index],
+            url=f"https://letterboxd.com/film/{model.index_to_film[index]}",
+            score=predictions[index],
         )
-        for index, score in zip(top.indices, top.values)
+        for index in top_indices
     ]
 
     return recommendations
-
-
-cosine = torch.nn.CosineSimilarity()
 
 
 @app.get("/similar")
@@ -99,24 +94,25 @@ def similar(
 
     film_indices = []
     for film in films:
-        if film in model.dataset.film_to_index:
-            film_indices.append(model.dataset.film_to_index[film])
+        if film in model.film_to_index:
+            film_indices.append(model.film_to_index[film])
         else:
             raise ValueError(f"{film} isn't in our list of films!")
 
     embedding = (
-        model.film_embeddings(torch.Tensor(film_indices).int()).mean(dim=0).squeeze()
+        model.film_embeddings[film_indices].mean(dim=0).unsqueeze(0).detach().numpy()
     )
 
-    predictions = cosine(model.film_embeddings.weight, embedding)
-    top = torch.topk(predictions, n)
+    predictions = cosine_similarity(model.film_embeddings, embedding)
+
+    top_indices = np.argsort(predictions)[::-1][:n]
     recommendations = [
         FilmRecommendation(
-            slug=model.dataset.index_to_film[index.item()],
-            url=f"https://letterboxd.com/film/{model.dataset.index_to_film[index.item()]}",
-            score=score,
+            slug=model.index_to_film[index.item()],
+            url=f"https://letterboxd.com/film/{model.index_to_film[index.item()]}",
+            score=predictions[index],
         )
-        for index, score in zip(top.indices, top.values)
+        for index in top_indices
     ]
 
     return recommendations
