@@ -1,4 +1,4 @@
-.PHONY: install test scrape process train recommend api infra-start infra-stop infra-export infra-ssh
+.PHONY: install test scrape process train recommend api infra-start infra-stop infra-export
 
 install:
 	poetry install
@@ -7,6 +7,7 @@ install:
 
 test:
 	poetry run pre-commit run -a
+	poetry run pytest
 
 scrape:
 	$(eval date := $(shell date -u +"%Y-%m-%d"))
