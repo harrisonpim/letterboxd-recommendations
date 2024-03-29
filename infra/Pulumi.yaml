@@ -1,0 +1,4 @@
+name: letterboxd
+runtime: python
+description: An GPU instance for training a recsys model on letterboxd data
+main: .

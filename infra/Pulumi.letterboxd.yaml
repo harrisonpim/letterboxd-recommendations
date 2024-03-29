@@ -1,0 +1,4 @@
+config:
+  aws:profile: personal
+  aws:region: eu-west-1
+  letterboxd:project: letterboxd

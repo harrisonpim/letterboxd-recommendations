@@ -1,4 +1,4 @@
-.PHONY: install scrape process train
+.PHONY: install test scrape process train recommend api infra-start infra-stop infra-export infra-ssh
 
 install:
 	poetry install
@@ -23,5 +23,14 @@ train:
 recommend:
 	poetry run python scripts/recommend.py
 
-fastapi:
+api:
 	poetry run uvicorn api.main:app --reload
+
+infra-start:
+	poetry run pulumi up --cwd infra --stack letterboxd --yes
+
+infra-stop:
+	poetry run pulumi destroy --cwd infra --stack letterboxd --yes
+
+infra-export:
+	export $$(poetry run pulumi stack output --shell --cwd infra --stack letterboxd)
