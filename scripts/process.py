@@ -19,8 +19,8 @@ for file in sorted((data_dir / "raw").glob("*.json")):
     # drop any duplicate rows
     df = df.drop_duplicates()
 
-    # drop any film which hasn't been rated by more than 20 users
-    df = df.groupby("film-slug").filter(lambda x: len(x) > 20)
+    # drop any film which hasn't been rated by more than 200 users
+    df = df.groupby("film-slug").filter(lambda x: len(x) > 200)
 
     # drop any user who hasn't rated more than 3 films
     df = df.groupby("username").filter(lambda x: len(x) > 3)

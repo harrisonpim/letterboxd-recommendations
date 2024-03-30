@@ -1,5 +1,5 @@
 import torch
-from torch.nn import Dropout, Embedding, Linear, Module, ReLU, Sequential
+from torch.nn import Dropout, Embedding, Linear, Module, ReLU, Sequential, init
 
 from src.dataset import LetterboxdDataset
 from src.numpy_recommender import NumpyRecommender
@@ -7,31 +7,45 @@ from src.numpy_recommender import NumpyRecommender
 
 class Recommender(Module):
     def __init__(
-        self, dataset: LetterboxdDataset = LetterboxdDataset.empty(), embedding_size=50
+        self, dataset: LetterboxdDataset = LetterboxdDataset.empty(), embedding_dim=50
     ):
         """
         Recommender system for films based on letterboxd user ratings.
 
         :param LetterboxdDataset dataset: Dataset containing user ratings.
-        :param int embedding_size: Dimensionality of the film embeddings
+        :param int embedding_dim: Dimensionality of the film embeddings
         """
         super().__init__()
         self.dataset = dataset
         self.mean_rating = dataset.mean_rating
 
         self.film_embeddings = Embedding(
-            len(self.dataset.films), embedding_size, dtype=torch.float32
+            len(self.dataset.films), embedding_dim, dtype=torch.float32
         )
+        init.normal_(self.film_embeddings.weight, mean=0.0, std=0.01)
+
+        self.film_biases = Embedding(len(self.dataset.films), 1, dtype=torch.float32)
+        init.constant_(self.film_biases.weight, 0.0)
 
         self.feed_forward_layers = Sequential(
-            Linear(4 * embedding_size, 2 * embedding_size),
+            Linear(4 * embedding_dim, 2 * embedding_dim),
             Dropout(0.2),
             ReLU(),
-            Linear(2 * embedding_size, 2 * embedding_size),
+            Linear(2 * embedding_dim, 2 * embedding_dim),
             Dropout(0.2),
             ReLU(),
-            Linear(2 * embedding_size, embedding_size),
+            Linear(2 * embedding_dim, 2 * embedding_dim),
+            Dropout(0.2),
+            ReLU(),
+            Linear(2 * embedding_dim, 2 * embedding_dim),
+            Dropout(0.2),
+            ReLU(),
+            Linear(2 * embedding_dim, embedding_dim),
         )
+        for layer in self.feed_forward_layers:
+            if isinstance(layer, Linear):
+                init.kaiming_normal_(layer.weight, mode="fan_in", nonlinearity="relu")
+                init.constant_(layer.bias, 0.0)
 
     def get_user_embedding(self, user_index: int) -> torch.Tensor:
         """
@@ -41,8 +55,12 @@ class Recommender(Module):
         :return torch.Tensor: The user embedding.
         """
         user_ratings = self.dataset.get_user_ratings(user_index)
-        ratings = torch.tensor(user_ratings["rating"].values).unsqueeze(1)
-        film_indices = torch.tensor(user_ratings["film_index"].values)
+        ratings = torch.tensor(
+            user_ratings["rating"].values, dtype=torch.float32
+        ).unsqueeze(1)
+        film_indices = torch.tensor(
+            user_ratings["film_index"].values, dtype=torch.int32
+        )
         user_embedding = self.get_user_embedding_from_ratings(film_indices, ratings)
         return user_embedding
 
@@ -71,9 +89,10 @@ class Recommender(Module):
         :param torch.Tensor ratings: The corresponding ratings for each film
         :return torch.Tensor: The user embedding
         """
-        # TODO account for each user's mean rating, rather than global mean
-        weights = (ratings - self.mean_rating) + 0.1
-        user_film_embeddings = self.film_embeddings(film_indices)
+        weights = ratings - ratings.mean() + 0.1
+        user_film_embeddings = self.film_embeddings(film_indices) + self.film_biases(
+            film_indices
+        )
         weighted_embeddings = user_film_embeddings * weights
         concat_embeddings = torch.cat(
             [
@@ -100,17 +119,41 @@ class Recommender(Module):
 
     def forward(
         self,
-        user_embeddings: torch.Tensor,  # size: (batch_size, embedding_size)
-        film_embeddings: torch.Tensor,  # size: (batch_size, embedding_size)
+        user_embeddings: torch.Tensor,  # size: (batch_size, embedding_dim)
+        film_indices: torch.Tensor,  # size: (batch_size)
+        diagonal_only: bool = True,
     ) -> torch.Tensor:  # size: (batch_size, batch_size)
         """
-        Forward pass of the model.
+        Forward pass of the model, calculating the predicted ratings for each user-film
+        interaction.
 
-        :param torch.Tensor user_indices: A batch of user indexes
-        :param torch.Tensor film_indices: A batch of film indexes
-        :return torch.Tensor: Predicted ratings
+        :param torch.Tensor user_embeddings: A batch of user embeddings
+        :param torch.Tensor film_indices: A batch of film indices
+        :param bool diagonal_only: if True, only calculate the interactions for the
+        diagonal of the matrix. This is useful for calculating the predictions for a set
+        of known user-film interactions, where the other interactions can be ignored. If
+        false, calculate the interactions for the full matrix. default: True
+        :return torch.Tensor: Predicted ratings for each user-film interaction
         """
-        return torch.matmul(user_embeddings, film_embeddings.T)
+        film_embeddings = self.film_embeddings(film_indices) + self.film_biases(
+            film_indices
+        )
+        if diagonal_only:
+            # Only calculate the interactions for the diagonal of the matrix
+            assert user_embeddings.shape == film_embeddings.shape
+            A = user_embeddings.view(
+                user_embeddings.shape[0], 1, user_embeddings.shape[1]
+            )
+            B = film_embeddings.view(
+                1, film_embeddings.shape[0], film_embeddings.shape[1]
+            )
+            predictions = torch.diagonal(torch.sum(A * B, dim=-1), dim1=0, dim2=1)
+
+        else:
+            # Calculate all interactions
+            predictions = torch.matmul(user_embeddings, film_embeddings.T).squeeze()
+
+        return torch.sigmoid(predictions)
 
     def save(self, path: str):
         """
@@ -140,6 +183,7 @@ class Recommender(Module):
         :return NumpyRecommender: A NumpyRecommender version of the model.
         """
         film_embeddings = self.film_embeddings.weight.detach().numpy()
+        film_biases = self.film_biases.weight.detach().numpy()
         feed_forward_weights, feed_forward_biases = zip(
             *[
                 (layer.weight.detach().numpy(), layer.bias.detach().numpy())
@@ -150,7 +194,7 @@ class Recommender(Module):
         numpy_model = NumpyRecommender(
             film_slugs=self.dataset.films,
             film_embeddings=film_embeddings,
-            mean_rating=self.mean_rating,
+            film_biases=film_biases,
             feed_forward_weights=feed_forward_weights,
             feed_forward_biases=feed_forward_biases,
         )

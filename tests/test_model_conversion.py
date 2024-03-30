@@ -6,7 +6,7 @@ from src.dataset import LetterboxdDataset
 
 def test_models_produce_same_user_embeddings():
     dummy_dataset = LetterboxdDataset.dummy(1000)
-    torch_model = Recommender(dataset=dummy_dataset, embedding_size=10)
+    torch_model = Recommender(dataset=dummy_dataset, embedding_dim=10)
     torch_model.eval()
     numpy_model = torch_model.to_numpy()
 
@@ -27,7 +27,7 @@ def test_models_produce_same_user_embeddings():
 
 def test_models_produce_same_recommendations():
     dummy_dataset = LetterboxdDataset.dummy(1000)
-    torch_model = Recommender(dataset=dummy_dataset, embedding_size=10)
+    torch_model = Recommender(dataset=dummy_dataset, embedding_dim=10)
     torch_model.eval()
     numpy_model = torch_model.to_numpy()
 

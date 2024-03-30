@@ -4,7 +4,7 @@ import httpx
 import scrapy
 
 
-def scrape_watchlist(username: str, n_pages: Optional[int]) -> List[str]:
+def scrape_watchlist(username: str, n_pages: Optional[int] = None) -> List[str]:
     """
     Fetch the list of films from a user's watchlist.
 

@@ -1,0 +1,16 @@
+# Model configuration
+model:
+  # existing_model_path: data/models/2024-03-30.pkl
+  embedding_dim: 100
+
+
+# Training hyperparameters
+training:
+  batch_size: 256
+  n_epochs: 3
+  learning_rate: 0.001
+  weight_decay: 0.0001
+
+# Dataset configuration
+dataset:
+  directory: data/processed/2023-11-19

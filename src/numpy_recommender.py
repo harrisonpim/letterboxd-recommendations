@@ -8,7 +8,7 @@ class NumpyRecommender:
         self,
         film_slugs: np.ndarray,
         film_embeddings: np.ndarray,
-        mean_rating: float,
+        film_biases: np.ndarray,
         feed_forward_weights: np.ndarray,
         feed_forward_biases: np.ndarray,
     ):
@@ -19,7 +19,7 @@ class NumpyRecommender:
 
         :param np.ndarray film_slugs: The list of films in the dataset
         :param np.ndarray film_embeddings: The corresponding list of film embeddings
-        :param float mean_rating: The mean rating of the dataset
+        :param float film_biases: The corresponding bias values for each film
         :param np.ndarray feed_forward_weights: The weights of the feed forward layers
         :param np.ndarray feed_forward_biases: The biases of the feed forward layers
         """
@@ -29,7 +29,7 @@ class NumpyRecommender:
 
         self.film_slugs = film_slugs
         self.film_embeddings = film_embeddings
-        self.mean_rating = mean_rating
+        self.film_biases = film_biases
 
         self.feed_forward_weights = feed_forward_weights
         self.feed_forward_biases = feed_forward_biases
@@ -47,9 +47,11 @@ class NumpyRecommender:
         :param np.ndarray ratings: The corresponding ratings for each film
         :return np.ndarray: The user embedding
         """
-        weights = (ratings - self.mean_rating) + 0.1
-        user_film_embeddings = self.film_embeddings[film_indices]
-        weighted_embeddings = user_film_embeddings * weights[:, np.newaxis]
+        weights = (ratings - ratings.mean()) + 0.1
+        user_film_embeddings = (
+            self.film_embeddings[film_indices] + self.film_biases[film_indices]
+        )
+        weighted_embeddings = user_film_embeddings * weights.reshape(-1, 1)
         concat_embeddings = np.concatenate(
             [
                 weighted_embeddings.min(axis=0),
@@ -62,7 +64,8 @@ class NumpyRecommender:
         user_embedding = self.feed_forward_layers(concat_embeddings)
         return user_embedding
 
-    def relu(self, x: np.ndarray) -> np.ndarray:
+    @staticmethod
+    def relu(x: np.ndarray) -> np.ndarray:
         """
         ReLU activation function
 
@@ -70,6 +73,30 @@ class NumpyRecommender:
         :return np.ndarray: The output of the activation function
         """
         return np.maximum(0, x)
+
+    @staticmethod
+    def cosine(a: np.ndarray, b: np.ndarray) -> float:
+        """
+        Compute the cosine similarity between two groups of vectors.
+
+        :param np.ndarray a: The first group of vectors. Shape: (a, m)
+        :param np.ndarray b: The second group of vectors. Shape: (b, m)
+        :return float: The cosine similarity between the two groups of vectors. Shape: (a, b)
+        """
+        a_norm = np.linalg.norm(a, axis=1)
+        b_norm = np.linalg.norm(b, axis=1)
+        dot_product = np.matmul(a, b.T)
+        return dot_product / np.outer(a_norm, b_norm)
+
+    @staticmethod
+    def sigmoid(x: np.ndarray) -> np.ndarray:
+        """
+        Sigmoid activation function
+
+        :param np.ndarray x: The input to the activation function
+        :return np.ndarray: The output of the activation function
+        """
+        return 1 / (1 + np.exp(-x))
 
     def feed_forward_layers(self, x: np.ndarray) -> np.ndarray:
         """
@@ -90,17 +117,27 @@ class NumpyRecommender:
         self,
         user_embeddings: np.ndarray,  # size: (batch_size, embedding_size)
         film_embeddings: Optional[np.ndarray] = None,  # size: (n_films, embedding_size)
+        diagonal_only: bool = True,
     ) -> np.ndarray:  # size: (batch_size, batch_size)
-        """
-        Make predictions for a batch of users and films.
-
-        :param np.ndarray user_embeddings: The embeddings for a batch of users
-        :param np.ndarray film_embeddings: The embeddings for a batch of films. If None, use the internal film embeddings
-        :return np.ndarray: The predicted ratings for each user-film pair
-        """
         if film_embeddings is None:
             film_embeddings = self.film_embeddings
-        return np.matmul(user_embeddings, film_embeddings.T)
+
+        if diagonal_only:
+            # only calculate the interactions for the diagonal of the matrix
+            assert user_embeddings.shape == film_embeddings.shape
+            A = user_embeddings.reshape(
+                user_embeddings.shape[0], 1, user_embeddings.shape[1]
+            )
+            B = film_embeddings.reshape(
+                1, film_embeddings.shape[0], film_embeddings.shape[1]
+            )
+            predictions = np.diagonal(np.sum(A * B, axis=-1), axis1=0, axis2=1)
+
+        else:
+            # calculate all interactions
+            predictions = np.matmul(user_embeddings, film_embeddings.T).squeeze()
+
+        return self.sigmoid(predictions)
 
     def save(self, path: str):
         """
@@ -123,17 +160,3 @@ class NumpyRecommender:
             model = pickle.load(f)
         assert isinstance(model, cls)
         return model
-
-
-def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
-    """
-    Compute the cosine similarity between two groups of vectors.
-
-    :param np.ndarray a: The first group of vectors. Shape: (a, m)
-    :param np.ndarray b: The second group of vectors. Shape: (b, m)
-    :return float: The cosine similarity between the two groups of vectors. Shape: (a, b)
-    """
-    a_norm = np.linalg.norm(a, axis=1)
-    b_norm = np.linalg.norm(b, axis=1)
-    dot_product = np.matmul(a, b.T)
-    return dot_product / np.outer(a_norm, b_norm)

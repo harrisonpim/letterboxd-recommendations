@@ -12,7 +12,6 @@ from src.letterboxd import scrape_watchlist
 from src.recommender import Recommender
 
 console = console.Console(highlight=False)
-app = typer.Typer()
 
 model_dir = Path("data/models")
 model_path = sorted(model_dir.glob("*.pkl"))[-1]
@@ -20,7 +19,6 @@ console.print(f"Loading model from {model_path}")
 model = Recommender.load(model_path)
 
 
-@app.command(help="Recommend movies based on your Letterboxd ratings")
 def main(
     username: str = typer.Option(..., prompt=True, help="Your Letterboxd username"),
     from_watchlist: bool = typer.Option(
@@ -95,4 +93,4 @@ def main(
 
 
 if __name__ == "__main__":
-    app()
+    typer.run(main)
